@@ -1,0 +1,1174 @@
+openapi: 3.0.3
+info:
+  title: Park.Fan API
+  description: |
+    # 🎢 Park.Fan API - Theme Park Data & Real-Time Wait Times
+
+    The Park.Fan API provides comprehensive theme park data with real-time wait times, intelligent park status detection, crowd level analysis, weather information, and hierarchical navigation. Built with modern web technologies and designed for theme park enthusiasts and developers.
+
+    ## 🌟 Key Features
+
+    - **Real-time Data**: Live wait times and ride status updates
+    - **Intelligent Park Status**: Dynamic "open" vs "closed" detection based on ride availability
+    - **Crowd Level Intelligence**: AI-driven park congestion analysis with historical context
+    - **Live Weather Data**: Current conditions and 7-day forecasts for every park
+    - **Hierarchical Navigation**: Access parks by continent, country, and park name
+    - **Advanced Filtering**: Filter by status, location, and operational parameters
+    - **Type-Safe API**: Proper parameter validation and type conversion
+    - **Comprehensive Coverage**: Theme parks worldwide with detailed ride information
+
+    ## � Smart Park Status Logic
+
+    Parks are dynamically classified as "open" or "closed" based on operational rides:
+    - **Threshold-based**: Parks with ≥X% operational rides are "open" (default: 50%)
+    - **Configurable**: Override threshold per request with `?openThreshold=X`
+    - **Real-time**: Status updates based on current ride operational data
+
+    ## 🌡️ Crowd Level Analysis
+
+    AI-powered crowd level detection provides intelligent park congestion insights:
+    - **Smart Calculation**: Based on top 30% of rides with highest wait times
+    - **Historical Context**: Compares current levels to 2-year rolling average
+    - **Confidence Scoring**: Data quality assessment for reliable predictions
+
+    ## 🌤️ Weather Integration
+
+    Complete weather information for trip planning:
+    - **Current Weather**: Real-time conditions with weather quality scores
+    - **7-Day Forecast**: Complete weather forecasts with daily breakdowns
+    - **Date-Stamped**: Each forecast includes the exact date (YYYY-MM-DD UTC)
+    - **Weather Scores**: AI-powered ratings for theme park visit quality (0-100%)
+
+    ## 🗺️ Hierarchical URL Structure
+
+    Every park and ride includes a `hierarchicalUrl` for intuitive navigation:
+    - Parks: `/parks/europe/germany/phantasialand`
+    - Rides: `/parks/europe/germany/phantasialand/taron`
+
+    Built with ❤️ for theme park enthusiasts worldwide.
+  version: 1.1.0
+  contact:
+    name: Patrick Arns
+    url: https://arns.dev
+    email: info@arns.dev
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api.park.fan
+    description: Production API
+  - url: http://localhost:3000
+    description: Development server
+
+paths:
+  /:
+    get:
+      summary: API Documentation (HTML)
+      description: Interactive API documentation rendered as HTML
+      tags:
+        - Documentation
+      responses:
+        '200':
+          description: HTML documentation page
+          content:
+            text/html:
+              schema:
+                type: string
+
+  /readme:
+    get:
+      summary: API Documentation (Markdown)
+      description: Raw API documentation in Markdown format
+      tags:
+        - Documentation
+      responses:
+        '200':
+          description: Markdown documentation
+          content:
+            text/markdown:
+              schema:
+                type: string
+
+  /openapi.yaml:
+    get:
+      summary: OpenAPI Specification
+      description: Complete OpenAPI 3.0.3 specification in YAML format
+      tags:
+        - Documentation
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+
+  /parks:
+    get:
+      summary: Get All Parks
+      description: |
+        Retrieve all theme parks with optional filtering and pagination.
+        Each park includes a `hierarchicalUrl` for location-based navigation.
+      tags:
+        - Parks
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of parks per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: isOpen
+          in: query
+          description: Filter parks by operational status
+          required: false
+          schema:
+            type: boolean
+        - name: openThreshold
+          in: query
+          description: Percentage threshold for considering a park "open" (0-100)
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+            default: 50
+        - name: continent
+          in: query
+          description: Filter parks by continent
+          required: false
+          schema:
+            type: string        - name: country
+          in: query
+          description: Filter parks by country
+          required: false
+          schema:
+            type: string
+        - name: includeCrowdLevel
+          in: query
+          description: Include crowd level calculation in response
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: includeWeather
+          in: query
+          description: Include live weather data in response
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: List of parks with pagination metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Park'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /parks/{parkIdentifier}:
+    get:
+      summary: Get Park by ID or Hierarchical Path
+      description: |
+        Get a specific park by numeric ID or hierarchical path.
+        
+        **Smart Routing:**
+        - Numeric values (e.g., `30`) are treated as park IDs
+        - String values trigger hierarchical path resolution
+        
+        **Hierarchical Examples:**
+        - `/parks/europe` - All parks in Europe
+        - `/parks/europe/germany` - All parks in Germany  
+        - `/parks/europe/germany/phantasialand` - Specific park
+      tags:
+        - Parks
+      parameters:
+        - name: parkIdentifier
+          in: path
+          description: Park ID (numeric) or continent name (string)
+          required: true
+          schema:
+            oneOf:
+              - type: integer
+                description: Numeric park ID
+              - type: string                description: Continent name for hierarchical navigation
+        - name: openThreshold
+          in: query
+          description: Percentage threshold for considering a park "open"
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+            default: 50
+        - name: includeCrowdLevel
+          in: query
+          description: Include crowd level calculation in response
+          required: false
+          schema:
+            type: boolean
+            default: true
+        - name: includeWeather
+          in: query
+          description: Include live weather data in response
+          required: false
+          schema:
+            type: boolean
+            default: true
+      responses:
+        '200':
+          description: Park details or list of parks for hierarchical paths
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Park'
+                  - type: array
+                    items:
+                      $ref: '#/components/schemas/Park'
+        '404':
+          description: Park not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /parks/{continent}/{country}:
+    get:
+      summary: Get Parks by Country
+      description: Get all parks in a specific country within a continent
+      tags:
+        - Parks
+      parameters:
+        - name: continent
+          in: path
+          description: Continent name
+          required: true
+          schema:
+            type: string
+        - name: country
+          in: path
+          description: Country name
+          required: true
+          schema:
+            type: string
+        - name: openThreshold
+          in: query
+          description: Percentage threshold for considering a park "open"
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: List of parks in the specified country
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Park'
+
+  /parks/{continent}/{country}/{parkName}:
+    get:
+      summary: Get Park by Hierarchical Path
+      description: Get a specific park using continent/country/park hierarchical path
+      tags:
+        - Parks
+      parameters:
+        - name: continent
+          in: path
+          description: Continent name
+          required: true
+          schema:
+            type: string
+        - name: country
+          in: path
+          description: Country name
+          required: true
+          schema:
+            type: string
+        - name: parkName
+          in: path
+          description: Park name (slug format)
+          required: true
+          schema:
+            type: string
+        - name: openThreshold
+          in: query
+          description: Percentage threshold for considering a park "open"
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Park details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Park'
+        '404':
+          description: Park not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /parks/{continent}/{country}/{parkName}/{rideName}:
+    get:
+      summary: Get Ride by Hierarchical Path
+      description: Get a specific ride using full hierarchical path
+      tags:
+        - Rides
+      parameters:
+        - name: continent
+          in: path
+          description: Continent name
+          required: true
+          schema:
+            type: string
+        - name: country
+          in: path
+          description: Country name
+          required: true
+          schema:
+            type: string
+        - name: parkName
+          in: path
+          description: Park name (slug format)
+          required: true
+          schema:
+            type: string
+        - name: rideName
+          in: path
+          description: Ride name (slug format)
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ride details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '404':
+          description: Ride not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /parks/{id}/rides:
+    get:
+      summary: Get Rides for Park
+      description: Get all rides for a specific park by park ID
+      tags:
+        - Rides
+      parameters:
+        - name: id
+          in: path
+          description: Park ID
+          required: true
+          schema:
+            type: integer
+        - name: isActive
+          in: query
+          description: Filter rides by active status
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: List of rides for the park
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Ride'
+
+  /rides:
+    get:
+      summary: Get All Rides
+      description: |
+        Retrieve all rides across all parks with optional filtering.
+        Each ride includes a `hierarchicalUrl` for direct navigation.
+      tags:
+        - Rides
+      parameters:
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: limit
+          in: query
+          description: Number of rides per page
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+        - name: isActive
+          in: query
+          description: Filter rides by active status
+          required: false
+          schema:
+            type: boolean
+        - name: parkId
+          in: query
+          description: Filter rides by park ID
+          required: false
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of rides with pagination metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Ride'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+  /rides/{id}:
+    get:
+      summary: Get Ride by ID
+      description: Get a specific ride by its numeric ID
+      tags:
+        - Rides
+      parameters:
+        - name: id
+          in: path
+          description: Ride ID
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Ride details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ride'
+        '404':
+          description: Ride not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /statistics:
+    get:
+      summary: Get Park Statistics
+      description: |
+        Get comprehensive statistics about parks and rides, including:
+        - Total counts of parks and rides
+        - Operational status breakdowns
+        - Geographic distribution
+        - Busiest and quietest parks based on wait times
+        
+        Parks are classified as "open" or "closed" based on the percentage of operational rides.
+      tags:
+        - Statistics
+      parameters:
+        - name: openThreshold
+          in: query
+          description: |
+            Percentage threshold for considering a park "open" (0-100).
+            Parks with this percentage or more of operational rides are considered "open".
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Comprehensive park and ride statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Statistics'
+
+components:
+  schemas:
+    Park:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique park identifier
+          example: 30
+        name:
+          type: string
+          description: Park name
+          example: "Phantasialand"
+        country:
+          type: string
+          description: Country where the park is located
+          example: "Germany"
+        continent:
+          type: string
+          description: Continent where the park is located
+          example: "Europe"
+        latitude:
+          type: number
+          format: float
+          description: Park latitude coordinate
+          example: 50.798761
+        longitude:
+          type: number
+          format: float
+          description: Park longitude coordinate
+          example: 6.879128
+        timezone:
+          type: string
+          description: Park timezone
+          example: "Europe/Berlin"
+        hierarchicalUrl:
+          type: string
+          description: Hierarchical URL path for the park
+          example: "/parks/europe/germany/phantasialand"
+        isOpen:
+          type: boolean
+          description: Whether the park is currently considered "open" based on ride availability
+          example: true        rides:
+          type: array
+          description: List of rides in the park (included when fetching specific park)
+          items:
+            $ref: '#/components/schemas/Ride'
+        crowdLevel:
+          $ref: '#/components/schemas/CrowdLevel'
+          description: Current crowd level calculation (included by default, can be excluded with includeCrowdLevel=false)
+        weather:
+          $ref: '#/components/schemas/WeatherData'
+          description: Complete weather information including current conditions and 7-day forecast (included by default, can be excluded with includeWeather=false)
+      required:
+        - id
+        - name
+        - country
+        - continent
+        - hierarchicalUrl
+        - isOpen
+
+    Ride:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Unique ride identifier
+          example: 487
+        name:
+          type: string
+          description: Ride name
+          example: "Taron"
+        isActive:
+          type: boolean
+          description: Whether the ride is currently operational
+          example: true
+        waitTime:
+          type: integer
+          nullable: true
+          description: Current wait time in minutes (null if not available)
+          example: 45
+        lastUpdated:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the wait time was last updated
+          example: "2024-01-15T14:30:00Z"
+        parkId:
+          type: integer
+          description: ID of the park this ride belongs to
+          example: 30
+        hierarchicalUrl:
+          type: string
+          description: Hierarchical URL path for the ride
+          example: "/parks/europe/germany/phantasialand/taron"
+        park:
+          $ref: '#/components/schemas/Park'
+          description: Park information (included when fetching rides directly)
+      required:
+        - id
+        - name
+        - isActive
+        - parkId
+        - hierarchicalUrl
+
+    Statistics:
+      type: object
+      properties:
+        totalParks:
+          type: integer
+          description: Total number of parks in the system
+          example: 156
+        totalThemeAreas:
+          type: integer
+          description: Total number of theme areas across all parks
+          example: 486
+        totalRides:
+          type: integer
+          description: Total number of rides across all parks
+          example: 2847
+        parkOperatingStatus:
+          type: object
+          properties:
+            openParks:
+              type: integer
+              description: Number of parks currently considered "open"
+              example: 89
+            closedParks:
+              type: integer
+              description: Number of parks currently considered "closed"
+              example: 67
+            operatingPercentage:
+              type: number
+              description: Percentage of parks currently open
+              example: 57.0
+            openThreshold:
+              type: integer
+              description: The threshold percentage used for determining park "open" status
+              example: 50
+        rideStatistics:
+          type: object
+          properties:
+            totalRides:
+              type: integer
+              description: Total number of rides
+              example: 2847
+            activeRides:
+              type: integer
+              description: Number of rides currently active
+              example: 2156
+            openRides:
+              type: integer
+              description: Number of rides currently open
+              example: 1692
+            closedRides:
+              type: integer
+              description: Number of rides currently closed
+              example: 464
+            operatingPercentage:
+              type: number
+              description: Percentage of rides currently operating
+              example: 78.5
+            waitTimeDistribution:
+              type: object
+              description: Distribution of wait times across different ranges
+              properties:
+                "0-10":
+                  type: integer
+                  example: 1425
+                "11-30":
+                  type: integer
+                  example: 187
+                "31-60":
+                  type: integer
+                  example: 58
+                "61-120":
+                  type: integer
+                  example: 19
+                "120+":
+                  type: integer
+                  example: 3
+            longestWaitTimes:
+              type: array
+              description: Rides with the longest current wait times
+              items:
+                type: object
+                properties:
+                  rideId:
+                    type: integer
+                    example: 487
+                  name:
+                    type: string
+                    example: "Guardians of the Galaxy"
+                  waitTime:
+                    type: integer
+                    example: 135
+                  isOpen:
+                    type: boolean
+                    example: true
+                  lastUpdated:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T14:30:00Z"
+                  hierarchicalUrl:
+                    type: string
+                    description: Hierarchical URL path for the ride
+                    example: "/parks/north-america/united-states/disney-california-adventure/guardians-of-the-galaxy"
+                  park:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 124
+                      name:
+                        type: string
+                        example: "Disney California Adventure"
+                      country:
+                        type: string
+                        example: "United States"
+                      continent:
+                        type: string
+                        example: "North America"
+                      hierarchicalUrl:
+                        type: string
+                        description: Hierarchical URL path for the park
+                        example: "/parks/north-america/united-states/disney-california-adventure"
+            shortestWaitTimes:
+              type: array
+              description: Rides with the shortest current wait times
+              items:
+                type: object
+                properties:
+                  rideId:
+                    type: integer
+                    example: 123
+                  name:
+                    type: string
+                    example: "Carousel"
+                  waitTime:
+                    type: integer
+                    example: 5
+                  isOpen:
+                    type: boolean
+                    example: true
+                  lastUpdated:
+                    type: string
+                    format: date-time
+                    example: "2024-01-15T14:30:00Z"
+                  hierarchicalUrl:
+                    type: string
+                    description: Hierarchical URL path for the ride
+                    example: "/parks/europe/germany/phantasialand/carousel"
+                  park:
+                    type: object
+                    properties:
+                      id:
+                        type: integer
+                        example: 30
+                      name:
+                        type: string
+                        example: "Phantasialand"
+                      country:
+                        type: string
+                        example: "Germany"
+                      continent:
+                        type: string
+                        example: "Europe"
+                      hierarchicalUrl:
+                        type: string
+                        description: Hierarchical URL path for the park
+                        example: "/parks/europe/germany/phantasialand"
+            busiestParks:
+              type: array
+              description: Parks with highest average wait times
+              items:
+                type: object
+                properties:
+                  parkId:
+                    type: integer
+                    example: 30
+                  parkName:
+                    type: string
+                    example: "Phantasialand"
+                  country:
+                    type: string
+                    example: "Germany"
+                  continent:
+                    type: string
+                    example: "Europe"
+                  averageWaitTime:
+                    type: number
+                    description: Average wait time across all rides
+                    example: 32.5
+                  openRideCount:
+                    type: integer
+                    description: Number of currently open rides
+                    example: 15
+                  totalRideCount:
+                    type: integer
+                    description: Total number of rides in the park
+                    example: 18
+                  operatingPercentage:
+                    type: number
+                    description: Percentage of rides currently operating
+                    example: 83.3
+                  hierarchicalUrl:
+                    type: string
+                    description: Hierarchical URL path for the park
+                    example: "/parks/europe/germany/phantasialand"
+            quietestParks:
+              type: array
+              description: Parks with lowest average wait times
+              items:
+                type: object
+                properties:
+                  parkId:
+                    type: integer
+                    example: 45
+                  parkName:
+                    type: string
+                    example: "Example Park"
+                  country:
+                    type: string
+                    example: "Country"
+                  continent:
+                    type: string
+                    example: "Europe"
+                  averageWaitTime:
+                    type: number
+                    description: Average wait time across all rides
+                    example: 8.2
+                  openRideCount:
+                    type: integer
+                    description: Number of currently open rides
+                    example: 12
+                  totalRideCount:
+                    type: integer
+                    description: Total number of rides in the park
+                    example: 14
+                  operatingPercentage:
+                    type: number
+                    description: Percentage of rides currently operating
+                    example: 85.7
+                  hierarchicalUrl:
+                    type: string
+                    description: Hierarchical URL path for the park
+                    example: "/parks/europe/country/example-park"
+        parksByContinent:
+          type: array
+          description: Park statistics grouped by continent
+          items:
+            type: object
+            properties:
+              continent:
+                type: string
+                example: "Europe"
+              totalParks:
+                type: integer
+                example: 78
+              openParks:
+                type: integer
+                example: 45
+              closedParks:
+                type: integer
+                example: 33
+              operatingPercentage:
+                type: number
+                example: 57.7
+        parksByCountry:
+          type: array
+          description: Park statistics grouped by country (top 10)
+          items:
+            type: object
+            properties:
+              country:
+                type: string
+                example: "United States"
+              totalParks:
+                type: integer
+                example: 45
+              openParks:
+                type: integer
+                example: 28
+              closedParks:
+                type: integer
+                example: 17
+              operatingPercentage:
+                type: number
+                example: 62.2
+      required:
+        - totalParks
+        - totalThemeAreas
+        - totalRides
+        - parkOperatingStatus
+        - rideStatistics
+        - parksByContinent
+        - parksByCountry
+
+    Pagination:
+      type: object
+      properties:
+        page:
+          type: integer
+          description: Current page number
+          example: 1
+        limit:
+          type: integer
+          description: Number of items per page
+          example: 10
+        total:
+          type: integer
+          description: Total number of items
+          example: 156
+        totalPages:
+          type: integer
+          description: Total number of pages
+          example: 16
+        hasNextPage:
+          type: boolean
+          description: Whether there is a next page
+          example: true
+        hasPreviousPage:
+          type: boolean
+          description: Whether there is a previous page
+          example: false
+      required:
+        - page
+        - limit
+        - total
+        - totalPages
+        - hasNextPage        - hasPreviousPage
+
+    CrowdLevel:
+      type: object
+      properties:
+        level:
+          type: integer
+          description: Crowd level percentage (0-200+)
+          example: 85
+        label:
+          type: string
+          enum: [Very Low, Low, Moderate, High, Very High, Extreme]
+          description: Descriptive crowd level label
+          example: "Moderate"
+        ridesUsed:
+          type: integer
+          description: Number of rides used in calculation
+          example: 5
+        totalRides:
+          type: integer
+          description: Total number of rides with data
+          example: 12
+        historicalBaseline:
+          type: integer
+          description: Historical baseline wait time in minutes
+          example: 25
+        currentAverage:
+          type: integer
+          description: Current average wait time in minutes
+          example: 21
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Confidence level of calculation (0-100%)
+          example: 78
+        calculatedAt:
+          type: string
+          format: date-time
+          description: When the crowd level was calculated
+          example: "2025-06-18T16:43:17.413Z"
+      required:
+        - level
+        - label
+        - ridesUsed
+        - totalRides
+        - historicalBaseline
+        - currentAverage
+        - confidence
+        - calculatedAt
+
+    WeatherData:
+      type: object
+      description: Complete weather information including current conditions and 7-day forecast
+      properties:
+        current:
+          $ref: '#/components/schemas/Weather'
+          nullable: true
+          description: Current weather conditions for today
+        forecast:
+          type: array
+          description: 7-day weather forecast (excluding today)
+          items:
+            $ref: '#/components/schemas/WeatherForecast'
+      required:
+        - current
+        - forecast
+
+    Weather:
+      type: object
+      description: Current weather conditions
+      properties:
+        temperature:
+          type: object
+          description: Temperature range for the day
+          properties:
+            min:
+              type: integer
+              description: Minimum temperature in Celsius
+              example: 18
+            max:
+              type: integer
+              description: Maximum temperature in Celsius
+              example: 25
+          required:
+            - min
+            - max
+        precipitationProbability:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: Probability of precipitation (0-100%)
+          example: 20
+        weatherCode:
+          type: integer
+          description: WMO weather interpretation code
+          example: 1
+        status:
+          type: string
+          enum:
+            - sunny
+            - partly_cloudy
+            - cloudy
+            - overcast
+            - light_rain
+            - rain
+            - heavy_rain
+            - thunderstorm
+            - snow
+            - fog
+            - drizzle
+          description: Human-readable weather status
+          example: "partly_cloudy"
+        weatherScore:
+          type: integer
+          minimum: 0
+          maximum: 100
+          description: |
+            AI-powered weather quality score for theme park visits (0-100%).
+            100% = Perfect weather conditions, 0% = Terrible weather.
+            
+            Score ranges:
+            - 90-100%: Perfect conditions - ideal for visiting
+            - 70-89%: Good conditions - great for outdoor activities  
+            - 50-69%: Fair conditions - acceptable but not optimal
+            - 30-49%: Poor conditions - consider indoor attractions
+            - 0-29%: Terrible conditions - might want to postpone visit
+          example: 85
+      required:
+        - temperature
+        - precipitationProbability
+        - weatherCode
+        - status
+        - weatherScore
+
+    WeatherForecast:
+      type: object
+      description: Weather forecast for a specific day
+      allOf:
+        - $ref: '#/components/schemas/Weather'
+        - type: object
+          properties:
+            date:
+              type: string
+              format: date
+              description: Forecast date in YYYY-MM-DD format (UTC)
+              example: "2025-06-22"
+          required:
+            - date
+
+    Error:
+      type: object
+      properties:
+        statusCode:
+          type: integer
+          description: HTTP status code
+          example: 404
+        message:
+          type: string
+          description: Error message
+          example: "Park not found"
+        error:
+          type: string
+          description: Error type
+          example: "Not Found"
+      required:
+        - statusCode
+        - message
+
+  parameters:
+    OpenThreshold:
+      name: openThreshold
+      in: query
+      description: |
+        Percentage threshold for considering a park "open" (0-100).
+        Parks with this percentage or more of operational rides are considered "open".
+      required: false
+      schema:
+        type: integer
+        minimum: 0
+        maximum: 100
+        default: 50
+
+    Page:
+      name: page
+      in: query
+      description: Page number for pagination
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+
+    Limit:
+      name: limit
+      in: query
+      description: Number of items per page
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 10
+
+tags:
+  - name: Documentation
+    description: API documentation and specifications
+  - name: Parks
+    description: Theme park information and hierarchical navigation
+  - name: Rides
+    description: Ride details, wait times, and operational status
+  - name: Statistics
+    description: Comprehensive statistics and analytics
+
+externalDocs:
+  description: Find more info on GitHub
+  url: https://github.com/parns/api.park.fan

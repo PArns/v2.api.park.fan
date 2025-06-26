@@ -1,0 +1,12 @@
+node_modules/
+.next/
+.git/
+dist/
+build/
+*.log
+*.lock
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+public/robots.txt
+public/manifest.json
